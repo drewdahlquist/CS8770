@@ -1,0 +1,64 @@
+Hi class,
+
+The goal of project 2 is to familiarize yourself with neural networks for time/sequence processing. 
+
+Methods:
+
+    Implement and experiment with a recurrent neural network (RNN) OR a long short term memory (LSTM)
+        I am letting you pick and you just need to do just one!!! 
+        Yes, you can build on existing code/libraries, e.g., the PyTorch-based examples I sent out in a class Announcement 
+            This includes forward pass and training (e.g., TBPTT)
+            If you build on some code/library, reference it in your report
+
+Experimentally, explore a subset of the following:
+
+    {Single, Multiple} Input, {Single, Multiple} Output
+    Sequence length and complexity, e.g., one time step dependency vs 10 or 100 or ...
+    BPTT vs different truncation lengths in TBPTT
+    Initial state conditions
+    Hyperparameters, e.g.,
+        RNN: hidden state size, loss function, nonlinearities, etc.
+        LSTM: cell size, hidden state size, loss function, nonlinearities, etc.
+
+Datasets: 
+
+    MNIST digit or fashion
+        You can process the images as a sequences of pixels. A RNN and LSTM does not require a sequence to be a pre-specified/fixed length. How good does 
+it work if you only give it the middle column? A random sequence of pixels? 5% of the sequence, 20% of the sequence, etc.? How long should the token size 
+be? Pass 1 or many? There are many ways that you can divide and conquer this classification problem. What does it do if you just have a single final 
+output? What about multiple outputs? Have fun.
+    Online datasets
+        Specifically, financial data is common and a good place to look. Typically more of a regression task (or classification (predict then buy/don't 
+buy)). Markets (stocks) tend to be pretty random so might avoid that but daily revenue for example should have sequential trends that can be learned to 
+some degree. Be careful not to pick too hard of a dataset/problem. 
+        There are also online weather forecast and climate datasets, but be careful, they can be hard :)
+        Some general sequence data repos - 
+https://archive.ics.uci.edu/ml/datasets.php?format=&task=&att=&area=&numAtt=10to100&numIns=&type=ts&sort=nameUp&view=table 
+
+        Links to an external site. 
+    Create your own toy problem
+        Think about the example of weather and food from class. Start simple and small and work up to bigger and/or more complex. My class example was a 
+simple one step dependency, what you did today depended on today's weather and what you did yesterday. What if you extend that example and change our 
+logic at a week vs day level? Every first Mon of the month you must eat X, second Mon of the week you will eat Y, ... Point being, one trend on a 
+day-2-day basis, another on a week, hey, you could even do monthly or seasonally! Just saying, you can scale the problem up and make it longer 
+sequence-based and see how different RNNs/LSTMs respond...
+        But gang, lots of other fun applications you could think about and "simulate", I don't want to restrict you! 
+            financial, human activity recognition, robotic navigation, games (tic tack toe, Texas hold'em, etc.), language-2-language translation (e.g., 
+English to Spanish), image-2-text-generation (single image in, multiple output out (the text!)), sketch recognition (sequence of pixels in for the pen, 
+and single output which is the letter/character the user typed), etc.
+    I am recommending that you do NOT do:
+        NLP: it can take a lot of effort/time to interface with the data/domain, e.g., do a word-2-vec encoding, and take a lot of computation to train 
+(your poor ole little laptops...).
+        Video classification: e.g., action classification in soccer videos, for similar reasons, lots of computational time/resources.
+        POINT BEING, if y'all really want to focus on a particular application that your interested in, I don't recommend it (due to time), but I could be 
+convinced if you want to ask ...
+
+Report:
+
+    Same report format as for Project 1.
+
+Any questions, ask away. 
+
+Cheers, 
+
+Dr. A
