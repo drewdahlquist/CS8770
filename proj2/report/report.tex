@@ -106,9 +106,15 @@
 \section{Introduction}
 
 For this project I decided to implement and explore LSTMs and find a dataset that naturally lends itself to 
-sequence processing. I was able to find a decent quality dataset from the UCI Machine Learning repository on
+sequence processing. I was able to find a decent quality dataset
+\footnote[1]{https://archive.ics.uci.edu/ml/datasets/bike+sharing+dataset}
+from the UCI Machine Learning repository on
 bike sharing data that provides various features and the count of people who rented bikes for every hour over the 
-span of 2 years, which gave me a good amount of data to work with, although more data would've been nicer.
+span of 2 years, which gave me a good amount of data to work with, although of course more data would've been nicer.
+In terms of getting started, I used a short PyTorch LSTM tutorial
+\footnote[2]{https://pytorch.org/tutorials/beginner/nlp/sequence\_models\_tutorial.html}
+to get my model class going, wrote the dataset class and data loaders by myself, and
+salvaged my training loop from the last project.
 
 I had a good amount of questions I wanted to attempt to answer during this project concerning LSTMs, as I'm
 personally not very invested in predicting how many people will use bike sharing in a given hour.
@@ -130,19 +136,22 @@ in traditional, vanilla RNNs.
 
 At a high level, an LSTM module consists of several memory cells, which are responsible for storing information, 
 and three gates - input, forget, and output gate - which control the flow of information into and out of the memory cells.
-The input gate determines which parts of the input to let through to the memory cells.
+The forget gate determines which parts of the previous memory cells to forget.
+It takes as input the current input, the previous hidden state, and a bias term, and produces an output between 0 and 1 
+for each element of the memory cells.
+The output ranging from 0 to 1 is then multiplied by the previous cell state resulting in the `forget' action 
+(for values $< 1$).
+Next the input gate determines which parts of the input to let through to the memory cells.
 It takes as input the current input, the previous hidden state, and a bias term, and produces an output between 0 and 1 
 for each element of the input.
 This output is then multiplied by the candidate values and added to the current memory cells.
-Next the forget gate determines which parts of the previous memory cells to forget.
-It takes as input the current input, the previous hidden state, and a bias term, and produces an output between 0 and 1 
-for each element of the memory cells.
-This output is then multiplied by the previous memory cells, and subtracted from the current memory cells.
 Lastly, the output gate determines which parts of the memory cells to output as the hidden state.
 It takes as input the current input, the previous hidden state, and a bias term, and produces an output between 0 and 1 
 for each element of the memory cells.
-This output is then multiplied by the current memory cells, and passed through a non-linear activation function to 
+This output is then multiplied by the current memory cells passed through a non-linear activation function to 
 produce the hidden state.
+When stringing together multiple LSTM modules, the cell states and hidden states are fed into the following LSTM
+as they are at this point and the process continues.
 
 The equations for the input gate, forget gate, and output gate in PyTorch are as given below:
 
@@ -171,7 +180,7 @@ While necessary for properly defining/training an LSTM, these equations feel mor
 illustrating just how the flow of information is gated/connected within each module.
 From the below figure we easily see how the cell state gets update by means of passing the
 previous hidden state through the various gates, as well how the cell state influences the outgoing
-hidden state. A key feature of LSTMs is the "gradient highway" afforded to the cell state which allows
+hidden state. A key feature of LSTMs is the `gradient highway' afforded to the cell state which allows
 gradients to backpropagate through many LSTM modules relatively untouched, making training much less painful
 than with vanilla RNNs.
 
@@ -228,7 +237,7 @@ This is known as the `vanishing gradient' and `exploding gradient' problems, res
 
 There are many ways to address this issue with gradients during training such as gradient clipping, different
 activation functions, or by model respecification (i.e., LSTMs).
-LSTMs address this key difficulty in training recurrent neural networks (RNNs) through the use of its gating mechanisms.
+LSTMs address this key difficulty in training RNNs through the use of its gating mechanisms.
 These mechanisms allow the network to selectively `remember' and `forget' information over time, 
 which ideally prevents the gradients from becoming too small or too large during training.
 Specifically, this is where LSTMs three gates - input, output, and forget gates - come in to play so as to 
@@ -240,6 +249,36 @@ which helps to prevent the gradients from vanishing or exploding as in vanilla R
 
 % Chapter 3: Experiments and Results
 \chapter{Experiments and Results}
+
+\section{Sanity Check}
+
+Before getting into the finer details of LSTMs, I wanted to ensure that my model was functioning in good order.
+Besides watching training and validation loss decrease during training I figured it'd be good to manually inspect
+some of the inner workings to save my sanity as I got further along in the project as well as to strengthen my 
+understanding of how to navigate around LSTMs practically.
+I started by manually verfying the predicted counts were at least roughly near the true counts, as I wasn't
+expecting perfect performance but would like to be able to claim some level of accuracy in my model.
+I ran this check a few times during and after training with randomly selected samples and eyeballed the outcome, an
+example is shown below which comes from a trained LSTM and is good enough for me.
+
+\begin{lstlisting}[style=Python,caption=Sample preds vs labels,label=lst:python]
+    predictions = tensor([320.1914, 345.4972,  ..., 164.6243, 193.7517])
+    labels      = tensor([385.    , 401.    ,  ..., 167.    , 210.])
+\end{lstlisting}
+
+Next I decided to ensure the distribution of predictions was more or less in-line with that of the true labels.
+Again the below density plot from a trained LSTM checks out. It should be noted that while having these
+densities perfectly match would be necessary for a strong model, it's not sufficient as we still care about 
+which samples predict which values, not just that the total distribution of values matches.
+While there are plenty more tests I could've ran to ensure the quality of my data, model, training, etc.
+these two quick checks gave me enough confidence in my model and training loop to proceed and have faith
+that my resulting conclusions stood on firm ground.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{figures/density plot.png}
+    \caption*{Density of true vs pred counts}
+\end{figure}
 
 \section{Sequence Length}
 
@@ -279,18 +318,86 @@ the above conclusion of `it depends' as good enough and moved on.
 
 \section{Hidden Dimension}
 
-Expecting learning capacity to peak somewhere within $1 < h < 10$
+The next natural question I had was what effect does the hidden dimension have on the LSTMs
+ability to both learn and performance inference. Intuitively I was expecting learning capacity to peak 
+somewhere within $4 < h < 20$ (equivalently min. val. loss) as I figured this would provide enough space 
+for the LSTM to `organize'  the infomartion in terms of cell state and hidden state yet would still be small 
+enough that training is effective as considering the extreme of, say, $500$ hidden dimensions feels 
+like it would hurt more than help.
+The below figure plots the loss on a validation set for varying hidden dimension's between 1 and 40.
+I opted to not see what happens fully training an LSTM with 500 hidden dimensions as 1 epoch took roughly 3 
+minutes to train on my laptop - I feel like 40 is plenty high of an upper bound for these experiments.
 
-\section{Visual(?) Dimension}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{figures/hidden dim vs val loss.png}
+    \caption*{hidden dim vs validation loss}
+\end{figure}
 
-Below are visualizations of the high-dimensional cell state using t-SNE over the course of training the LSTM.
+However, I still wanted to test my theory of whether more dimensions was affording the LSTM the ability
+to better `organize its thoughts'.
+I started with an LSTM with hidden dim $= 2$ to be able to easily visualize the cell state and hidden state 
+for all samples fed into the net with a scatter plot colored by the true count value. This plot is shown below.
+Qualitatively, this looks to be exactly the case as the LSTM is doing a good job to organize samples 
+with similar count values into similar areas of its hidden space, both via cell state and hidden state.
+Of these two, the cell state was the most surprising as there's nowhere I'm directly optimizing it, 
+whereas the hidden states final output in the sequence is fed into a linear layer to produce a prediction and is
+thus directly in line with the loss function.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{figures/dim 2 cell state.png}
+    \caption*{Visualization of 2 dimensional cell state colored by true count value}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{figures/dim 2 hidden state.png}
+    \caption*{Visualization of 2 dimensional hidden state colored by true count value}
+\end{figure}
+
+Looking into 2 dimensions was interesting enough to merit some more investigation into this feature,
+yet visualizing 3 dimensions on a computer is clumsy and $\geq$ 4 dimensions is impossible.
+Therefore I decided to reduce the dimesnion of the cell states and hidden states (after training/inference)
+for visualization via t-SNE. The below two plots are exactly this reconstruction of the previous two 
+with another trained LSTM with hidden dimension $= 4$.
+While t-SNE isn't perfect, we can still see a lot of the same behavior where
+counts with similar values are clumped together and counts with very different values tend to be much further.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{figures/dim 4 cell state.png}
+    \caption*{Visualization of 4 dimensional cell state colored by true count value}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{figures/dim 4 hidden state.png}
+    \caption*{Visualization of 4 dimensional hidden state colored by true count value}
+\end{figure}
+
+\section{Visual Dimension}
+
+The above results regarding peeking into the cell state and hidden state really interested me,
+so instead of just looking at the fully trained result I decided to collect some visuals throughout
+the training process, hoping to see the organizational pattern mentioned previously slowly emerge.
+The below are visualizations of the high-dimensional cell state using t-SNE over the course of training the LSTM.
 Each individual point is a prediction from the network on validation data and is colored according to the 
-magnitude of the true label.
+magnitude of the true label as before.
+The corresponding figures for hidden state are similar, therefore I'm only showing cell state since it surprised me
+the most as the setup of the LSTM places little emphasis on what exactly the cell state does, so long as its final
+feed into the hidden state and resulting inference is more or less useful.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.65\textwidth]{figures/cell state evolution/1 epoch.png}
     \caption*{t-SNE of Cell State After 1 epoch}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{figures/cell state evolution/3 epoch.png}
+    \caption*{t-SNE of Cell State After 3 epoch}
 \end{figure}
 
 \begin{figure}[H]
@@ -305,10 +412,54 @@ magnitude of the true label.
     \caption*{t-SNE of Cell State After 15 epochs}
 \end{figure}
 
+Personally, the above figures wow'd me. It makes sense that the cell state and hidden state would organize
+samples that require a similar predicted value into similar areas of space - somewhat similar to word embeddings -
+but to the extent that these come from my tiny LSTM trained on my tiny laptop using a (all things considerd) tiny dataset
+was remarkable I thought.
+There really isn't a whole lot of useful insight I can really provide on the above besides a bunch of
+conjectures on why this property occurs.
+My most likely explanation is that at initialization, the LSTM is predicting all of the counts to be near 0
+(i.e., all equally wrong in the same way), so during optimization the larger count values produce a larger 
+loss and therefore a larger gradient, where the smaller values do the opposite. This, coupled with the fact
+there is some hidden structure in this dataset (e.g., more people ride bikes in summer than winter)
+results in the training samples also being very similar themselves, causing the LSTM gates to fire in 
+much the same way. However, I couldn't really do much to test out this theory as it's something that needs to be
+marginalized over multiple datasets and inference tasks, but its my best guess.
 
 % Chapter 4: Reflection
 \chapter{Reflection}
 
+Working with LSTMs in PyTorch was a challenging but useful experience for me overall.
+At the start of working on this proejct the amount of time it took to set up the dataset and dataloader
+for sequence processing was a bit surprising as it presented some unexpected overhead setting up properly
+for training / testing splits. However, it was all pretty straightforward, it just required some extra time and care
+since its the foundation of training an RNN.
+Especially when compared to MNIST classification, where the data is already in a straightforward format,
+sequence data required more preprocessing and formatting.
+
+I also felt that training LSTMs is more `touchy' than training MLPs or CNNs
+since LSTMs are a more complex type of neural network, with more parameters and more fine-tuning required.
+I found that getting the right hyperparameters and tuning the model took a lot of trial and error as well as time
+since iterating on LSTMs isn't cheap for a CPU.
+However, I also suspect that some training difficulties may be partially due to the specific dataset I used, 
+and I'd like to experiment with other datasets to see if this is really the case - my gut says yes but 
+I'm unsure to what extent.
+
+Despite the challenges, I enjoyed exploring some of the potential of RNNs / LSTMs.
+I would've really liked to have had more time to apply LSTMs to other applications they've proven to be effective at like
+image captioning, machine translation, and some small language modeling.
+I think it would've been great to get into some of these as it sort of `marginalizes' the application / data specific 
+features and I would've walked away understanding LSTMs a bit better in terms of their low-level mechanics and also
+the heuristics for when and how to apply them to different problems.
+
+I also wish this project allocated some time / incentive to starting with vanilla RNNs before moving on to LSTMs.
+I would've enjoyed to explore the internals of training vanilla RNNs and finding all their pain points, then moving
+to LSTMs and (hopefully) see the issues with training vanilla RNNs (e.g., gradient troubles) go away, since in my mind
+LSTMs came about in order to `fix' some problems with vanilla RNNs.
+
+Overall, I really enjoyed working with RNNs and sequence processing. These models gave much more content to grab
+onto for exploring didn't feel as `basic' as MLPs/CNNs for MNIST image classification and have left me wanting to do
+more with them.
 
 % References
 \bibliographystyle{plain}
